@@ -38,6 +38,13 @@ This will:
 ./ttysokoban
 ```
 
+Flags
+
+```
+-a, --ascii    Use ASCII characters for walls instead of box drawing characters
+-b, -bw        Black and white mode (disable colors)
+```
+
 ## Game Controls
 
 - Movement:
@@ -64,12 +71,6 @@ Character representations:
 
 Walls are displayed using ASCII line drawing characters for a more visually appealing experience.
 
-## Adding Custom Levels
-
-1. Place your .sok level files in the `levels/` directory
-2. Run `./embed_levels` to update the embedded levels, or simply run `make update`
-3. Recompile with `make`
-
 ## Generating New Levels
 
 The game includes a script to generate new levels using the sokohard level generator:
@@ -78,20 +79,11 @@ The game includes a script to generate new levels using the sokohard level gener
 ./generate_level.sh
 ```
 
-This script will:
-1. Generate 42 progressively more difficult levels
-2. Save them to the `levels/` directory as `Gen01.sok` through `Gen42.sok`
-3. Automatically update the embedded levels if possible
-
-The generated levels have increasing width, height, and box count as difficulty increases. Even-numbered levels use the box-changes metric (number of box pushes), while odd-numbered levels use the player-moves metric.
-
-To use the generated levels in the game, run:
-
-```
-make update
-```
-
 ## Credits
 
 This game uses level format and concepts from the sokohard project:
 https://github.com/mezpusz/sokohard
+
+## License
+
+TTY Sokoban is Public Domain
