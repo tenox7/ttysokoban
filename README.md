@@ -1,5 +1,7 @@
 # TTY Sokoban
 
+![TTY Sokoban](ttysokoban.png)
+
 A terminal-based Sokoban game written in C using the ncurses library.
 
 ## Description
