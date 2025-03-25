@@ -32,8 +32,7 @@ MIN_HEIGHT=2  # Reduced minimum height
 MAX_HEIGHT=3  # Very small max height 
 MIN_WIDTH=4   # Width is double the height
 MAX_WIDTH=6   # Width is double the height
-MIN_BOXES=1   # Start with just one box
-MAX_BOXES=3   # Gradually increase to 3 boxes
+MAX_BOXES=4   # Maximum number of boxes
 
 echo "Generating $NUM_LEVELS progressively difficult levels using $NUM_CORES parallel jobs..."
 
@@ -46,7 +45,18 @@ generate_level() {
     # We'll use linear progression for simplicity
     local height=$(( MIN_HEIGHT + (i * (MAX_HEIGHT - MIN_HEIGHT)) / NUM_LEVELS ))
     local width=$(( MIN_WIDTH + (i * (MAX_WIDTH - MIN_WIDTH)) / NUM_LEVELS ))
-    local boxes=$(( MIN_BOXES + (i * (MAX_BOXES - MIN_BOXES)) / NUM_LEVELS ))
+    
+    # Calculate boxes based on level quartile (1-4 boxes distributed as 1:1-25%, 2:25-50%, 3:50-75%, 4:75-100%)
+    local level_percent=$(( i * 100 / NUM_LEVELS ))
+    if (( level_percent < 25 )); then
+        local boxes=1
+    elif (( level_percent < 50 )); then
+        local boxes=2
+    elif (( level_percent < 75 )); then
+        local boxes=3
+    else
+        local boxes=4
+    fi
     
     # Generate seed for reproducibility
     local seed=$((1000 + i))  # Different seed for each level
@@ -81,7 +91,7 @@ generate_level() {
 
 # Export variables and function for parallel usage
 export -f generate_level
-export SOKOHARD_BIN LEVELS_DIR NUM_LEVELS MIN_HEIGHT MAX_HEIGHT MIN_WIDTH MAX_WIDTH MIN_BOXES MAX_BOXES
+export SOKOHARD_BIN LEVELS_DIR NUM_LEVELS MIN_HEIGHT MAX_HEIGHT MIN_WIDTH MAX_WIDTH MAX_BOXES
 
 if [ "$USE_GNU_PARALLEL" -eq 1 ]; then
     # Use GNU parallel
