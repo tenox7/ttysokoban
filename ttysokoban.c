@@ -65,6 +65,7 @@ void show_help(const char* program_name) {
     printf("  R                            Restart current level\n");
     printf("  N                            Next level\n");
     printf("  P                            Previous level\n");
+    printf("  C                            Force screen redraw\n");
     printf("  Q                            Quit game\n");
 }
 
@@ -130,14 +131,12 @@ int main(int argc, char *argv[]) {
     game.boxes_on_goal = 0;
     game.level_name = strdup(embedded_levels[current_level].name);
 
+    /* Do initial full screen draw */
+    clear();
+    draw_map(&game);
+    
     /* Game loop */
     while (game_running) {
-        /* Draw the map */
-        clear();
-        draw_map(&game);
-
-        /* Status info is now shown in draw_map */
-
         /* Check if level is complete */
         if (game.boxes_on_goal == game.boxes_total) {
             level_complete = 1;
@@ -179,9 +178,16 @@ int main(int argc, char *argv[]) {
             case KEY_RIGHT:
             case 'd':
             case 'D':
-            case 'l':
-            case 'L':
                 move_player(&game, 1, 0);
+                break;
+            /* Handle 'l' and 'L' separately since 'L' is now used for redraw */
+            case 'l':
+                move_player(&game, 1, 0);
+                break;
+            case 'c':
+                /* Force a full redraw */
+                clear();
+                draw_map(&game);
                 break;
             case 'r':
                 /* Restart level */
@@ -189,6 +195,9 @@ int main(int argc, char *argv[]) {
                 game.map = load_level(current_level, &game.width, &game.height,
                                       &game.player_x, &game.player_y, &game.boxes_total);
                 game.boxes_on_goal = 0;
+                /* Do a full redraw after restart */
+                clear();
+                draw_map(&game);
                 break;
             case 'n':
                 /* Next level */
@@ -207,6 +216,10 @@ int main(int argc, char *argv[]) {
                                          &game.player_x, &game.player_y, &game.boxes_total);
                     game.boxes_on_goal = 0;
                     game.level_name = strdup(embedded_levels[current_level].name);
+                    
+                    /* Full redraw for new level */
+                    clear();
+                    draw_map(&game);
                 }
                 break;
             case 'p':
@@ -220,6 +233,10 @@ int main(int argc, char *argv[]) {
                     game.boxes_on_goal = 0;
                     game.level_name = strdup(embedded_levels[current_level].name);
                     level_complete = 0;
+                    
+                    /* Full redraw for new level */
+                    clear();
+                    draw_map(&game);
                 }
                 break;
             case 'q':
@@ -419,9 +436,11 @@ void draw_map(const Game* game) {
                         break;
                 }
             }
-
+            
             /* Draw map elements */
             if (ch == WALL) {
+                /* Walls don't get bold attribute */
+                
                 /* Use box drawing characters instead of reverse video */
                 int up = (y > 0 && game->map[y-1][x] == WALL);
                 int down = (y < game->height-1 && game->map[y+1][x] == WALL);
@@ -466,17 +485,46 @@ void draw_map(const Game* game) {
                     else mvaddch(start_y + y, start_x + x, ACS_PLUS);
                 }
             } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
+                /* Apply bold attribute to game characters when colors are enabled */
+                if (game->use_colors) {
+                    attron(A_BOLD);
+                }
                 mvaddch(start_y + y, start_x + x, DISP_PLAYER);
+                if (game->use_colors) {
+                    attroff(A_BOLD);
+                }
             } else if (ch == BOX) {
+                /* Apply bold attribute to game characters when colors are enabled */
+                if (game->use_colors) {
+                    attron(A_BOLD);
+                }
                 mvaddch(start_y + y, start_x + x, DISP_BOX);
+                if (game->use_colors) {
+                    attroff(A_BOLD);
+                }
             } else if (ch == BOX_ON_GOAL) {
+                /* Apply bold attribute to game characters when colors are enabled */
+                if (game->use_colors) {
+                    attron(A_BOLD);
+                }
                 mvaddch(start_y + y, start_x + x, DISP_BOX_ON_GOAL);
+                if (game->use_colors) {
+                    attroff(A_BOLD);
+                }
             } else if (ch == GOAL) {
+                /* Apply bold attribute to game characters when colors are enabled */
+                if (game->use_colors) {
+                    attron(A_BOLD);
+                }
                 mvaddch(start_y + y, start_x + x, DISP_GOAL);
+                if (game->use_colors) {
+                    attroff(A_BOLD);
+                }
             } else {
                 mvaddch(start_y + y, start_x + x, ch);
             }
 
+            
             /* Reset colors for this cell */
             if (game->use_colors && has_colors()) {
                 attroff(COLOR_PAIR(PAIR_WALL));
@@ -509,12 +557,143 @@ void draw_map(const Game* game) {
     }
 
     /* Only display legend if there's enough screen space */
-    if (start_y + game->height + 5 < screen_height) {
+    if (start_y + game->height + 6 < screen_height) {
         mvprintw(start_y + game->height + 4, start_x, "Arrows/WASD/hjkl move");
-        mvprintw(start_y + game->height + 5, start_x, "[R]estart, [N]ext, [P]rev, [Q]uit");
+        mvprintw(start_y + game->height + 5, start_x, "[R]estart, [N]ext, [P]rev, [Q]uit, [C]lear");
     }
 
     refresh();
+}
+
+/* Helper function to draw a cell */
+void draw_cell(const Game* game, int y, int x) {
+    char ch = game->map[y][x];
+
+    /* Apply colors if enabled */
+    if (game->use_colors && has_colors()) {
+        switch (ch) {
+            case WALL:
+                attron(COLOR_PAIR(PAIR_WALL));
+                break;
+            case PLAYER:
+            case PLAYER_ON_GOAL:
+                attron(COLOR_PAIR(PAIR_PLAYER));
+                break;
+            case BOX:
+                attron(COLOR_PAIR(PAIR_BOX));
+                break;
+            case GOAL:
+                attron(COLOR_PAIR(PAIR_GOAL));
+                break;
+            case BOX_ON_GOAL:
+                attron(COLOR_PAIR(PAIR_BOX_GOAL));
+                break;
+            case EMPTY:
+                attron(COLOR_PAIR(PAIR_FLOOR));
+                break;
+            default:
+                attron(COLOR_PAIR(PAIR_DEFAULT));
+                break;
+        }
+    }
+
+    /* Draw map elements */
+    if (ch == WALL) {
+        /* Walls don't get bold attribute */
+        
+        /* Use box drawing characters instead of reverse video */
+        int up = (y > 0 && game->map[y-1][x] == WALL);
+        int down = (y < game->height-1 && game->map[y+1][x] == WALL);
+        int left = (x > 0 && game->map[y][x-1] == WALL);
+        int right = (x < game->width-1 && game->map[y][x+1] == WALL);
+
+        if (game->use_ascii_borders) {
+            /* ASCII box characters */
+            if (up && down && left && right) mvaddch(start_y + y, start_x + x, '+');
+            else if (up && down && left) mvaddch(start_y + y, start_x + x, '+');
+            else if (up && down && right) mvaddch(start_y + y, start_x + x, '+');
+            else if (up && left && right) mvaddch(start_y + y, start_x + x, '+');
+            else if (down && left && right) mvaddch(start_y + y, start_x + x, '+');
+            else if (up && down) mvaddch(start_y + y, start_x + x, '|');
+            else if (left && right) mvaddch(start_y + y, start_x + x, '-');
+            else if (up && right) mvaddch(start_y + y, start_x + x, '+');
+            else if (up && left) mvaddch(start_y + y, start_x + x, '+');
+            else if (down && right) mvaddch(start_y + y, start_x + x, '+');
+            else if (down && left) mvaddch(start_y + y, start_x + x, '+');
+            else if (up) mvaddch(start_y + y, start_x + x, '|');
+            else if (down) mvaddch(start_y + y, start_x + x, '|');
+            else if (left) mvaddch(start_y + y, start_x + x, '-');
+            else if (right) mvaddch(start_y + y, start_x + x, '-');
+            else mvaddch(start_y + y, start_x + x, '+');
+        } else {
+            /* Box drawing characters */
+            if (up && down && left && right) mvaddch(start_y + y, start_x + x, ACS_PLUS);
+            else if (up && down && left) mvaddch(start_y + y, start_x + x, ACS_RTEE);
+            else if (up && down && right) mvaddch(start_y + y, start_x + x, ACS_LTEE);
+            else if (up && left && right) mvaddch(start_y + y, start_x + x, ACS_BTEE);
+            else if (down && left && right) mvaddch(start_y + y, start_x + x, ACS_TTEE);
+            else if (up && down) mvaddch(start_y + y, start_x + x, ACS_VLINE);
+            else if (left && right) mvaddch(start_y + y, start_x + x, ACS_HLINE);
+            else if (up && right) mvaddch(start_y + y, start_x + x, ACS_LLCORNER);
+            else if (up && left) mvaddch(start_y + y, start_x + x, ACS_LRCORNER);
+            else if (down && right) mvaddch(start_y + y, start_x + x, ACS_ULCORNER);
+            else if (down && left) mvaddch(start_y + y, start_x + x, ACS_URCORNER);
+            else if (up) mvaddch(start_y + y, start_x + x, ACS_VLINE);
+            else if (down) mvaddch(start_y + y, start_x + x, ACS_VLINE);
+            else if (left) mvaddch(start_y + y, start_x + x, ACS_HLINE);
+            else if (right) mvaddch(start_y + y, start_x + x, ACS_HLINE);
+            else mvaddch(start_y + y, start_x + x, ACS_PLUS);
+        }
+    } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
+        /* Apply bold attribute to game characters when colors are enabled */
+        if (game->use_colors) {
+            attron(A_BOLD);
+        }
+        mvaddch(start_y + y, start_x + x, DISP_PLAYER);
+        if (game->use_colors) {
+            attroff(A_BOLD);
+        }
+    } else if (ch == BOX) {
+        /* Apply bold attribute to game characters when colors are enabled */
+        if (game->use_colors) {
+            attron(A_BOLD);
+        }
+        mvaddch(start_y + y, start_x + x, DISP_BOX);
+        if (game->use_colors) {
+            attroff(A_BOLD);
+        }
+    } else if (ch == BOX_ON_GOAL) {
+        /* Apply bold attribute to game characters when colors are enabled */
+        if (game->use_colors) {
+            attron(A_BOLD);
+        }
+        mvaddch(start_y + y, start_x + x, DISP_BOX_ON_GOAL);
+        if (game->use_colors) {
+            attroff(A_BOLD);
+        }
+    } else if (ch == GOAL) {
+        /* Apply bold attribute to game characters when colors are enabled */
+        if (game->use_colors) {
+            attron(A_BOLD);
+        }
+        mvaddch(start_y + y, start_x + x, DISP_GOAL);
+        if (game->use_colors) {
+            attroff(A_BOLD);
+        }
+    } else {
+        mvaddch(start_y + y, start_x + x, ch);
+    }
+
+    /* Reset colors for this cell */
+    if (game->use_colors && has_colors()) {
+        attroff(COLOR_PAIR(PAIR_WALL));
+        attroff(COLOR_PAIR(PAIR_PLAYER));
+        attroff(COLOR_PAIR(PAIR_BOX));
+        attroff(COLOR_PAIR(PAIR_GOAL));
+        attroff(COLOR_PAIR(PAIR_BOX_GOAL));
+        attroff(COLOR_PAIR(PAIR_FLOOR));
+        attron(COLOR_PAIR(PAIR_DEFAULT));
+    }
 }
 
 /* Move the player */
@@ -524,6 +703,8 @@ int move_player(Game* game, int dx, int dy) {
     int box_new_x, box_new_y;
     char current_box;
     char current_pos;
+    int old_player_x, old_player_y;
+    int moved_box = 0;
 
     /* Check if new position is within bounds */
     if (new_x < 0 || new_x >= game->width || new_y < 0 || new_y >= game->height) {
@@ -534,6 +715,10 @@ int move_player(Game* game, int dx, int dy) {
     if (game->map[new_y][new_x] == WALL) {
         return 0;
     }
+
+    /* Save positions for redraw */
+    old_player_x = game->player_x;
+    old_player_y = game->player_y;
 
     /* Check if new position has a box */
     if (game->map[new_y][new_x] == BOX || game->map[new_y][new_x] == BOX_ON_GOAL) {
@@ -552,6 +737,7 @@ int move_player(Game* game, int dx, int dy) {
 
         /* Push the box */
         current_box = game->map[new_y][new_x];
+        moved_box = 1;
 
         /* If the box is on a goal, reveal the goal when the box is moved */
         if (current_box == BOX_ON_GOAL) {
@@ -583,6 +769,39 @@ int move_player(Game* game, int dx, int dy) {
     game->player_x = new_x;
     game->player_y = new_y;
 
+    /* Optimized drawing - only redraw changed cells */
+    /* Draw old player position */
+    draw_cell(game, old_player_y, old_player_x);
+    
+    /* Draw new player position */
+    draw_cell(game, game->player_y, game->player_x);
+    
+    /* If a box was moved, draw its new position */
+    if (moved_box) {
+        draw_cell(game, box_new_y, box_new_x);
+    }
+    
+    /* Update status line with current box count */
+    if (game->use_colors) {
+        attron(A_BOLD);
+    }
+    mvprintw(start_y + game->height + 3, start_x, "Boxes: %d/%d", game->boxes_on_goal, game->boxes_total);
+    if (game->use_colors) {
+        attroff(A_BOLD);
+    }
+    
+    /* Check if level is complete */
+    if (game->boxes_on_goal == game->boxes_total) {
+        if (game->use_colors) {
+            attron(A_STANDOUT);
+        }
+        mvprintw(start_y + game->height + 3, start_x, "Level complete! Press 'n' for next level.");
+        if (game->use_colors) {
+            attroff(A_STANDOUT);
+        }
+    }
+    
+    refresh();
     return 1;
 }
 
