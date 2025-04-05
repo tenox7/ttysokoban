@@ -1,6 +1,6 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -pedantic -g
-LDFLAGS = -lncurses
+CFLAGS = -Wall 
+LDFLAGS = -lcurses
 
 # Default target
 all: embed_levels ttysokoban

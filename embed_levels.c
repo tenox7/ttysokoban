@@ -123,7 +123,7 @@ int main(void) {
             }
 
             // Create full path to the file
-            snprintf(full_path, sizeof(full_path), "%s/%s", level_dir, entry->d_name);
+            sprintf(full_path, "%s/%s", level_dir, entry->d_name);
 
             // Allocate memory for and store the file path
             file_list[file_count] = strdup(full_path);

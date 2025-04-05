@@ -1,4 +1,4 @@
-#include <ncurses.h>
+#include <curses.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -15,6 +15,7 @@
 #define PAIR_BOX_GOAL  5  /* WHITE on MAGENTA */
 #define PAIR_FLOOR     6  /* BLACK on CYAN */
 #define PAIR_DEFAULT   7  /* WHITE on BLACK */
+#define PAIR_TITLE     8  /* RED on BLACK */
 
 /* Display characters (easy to change) */
 #define DISP_WALL '#'
@@ -40,6 +41,8 @@ typedef struct {
 /* Global variables */
 int current_level = 0;  /* Current level index */
 int num_levels = 0;     /* Total number of levels */
+int start_y = 0;        /* Start Y position for the map */
+int start_x = 0;        /* Start X position for the map */
 
 /* Function prototypes */
 void init_curses(void);
@@ -72,6 +75,7 @@ int main(int argc, char *argv[]) {
     int game_running = 1;
     int level_complete = 0;
     int ch;
+    int i;
 
     /* Initialize level variables */
     current_level = 0;
@@ -81,7 +85,7 @@ int main(int argc, char *argv[]) {
     game.use_ascii_borders = 0;
     game.use_colors = 1;  /* Colors enabled by default */
 
-    for (int i = 1; i < argc; i++) {
+    for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
             show_help(argv[0]);
             return EXIT_SUCCESS;
@@ -94,8 +98,25 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    /* Initialize ncurses */
-    init_curses();
+    /* Initialize ncurses - completely skip color initialization in black and white mode */
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+    curs_set(0);
+    
+    /* Only initialize colors if we're using color mode */
+    if (game.use_colors && has_colors()) {
+        start_color();
+        init_pair(PAIR_WALL, COLOR_WHITE, COLOR_BLUE);
+        init_pair(PAIR_PLAYER, COLOR_BLACK, COLOR_GREEN);
+        init_pair(PAIR_BOX, COLOR_BLACK, COLOR_RED);
+        init_pair(PAIR_GOAL, COLOR_RED, COLOR_CYAN);
+        init_pair(PAIR_BOX_GOAL, COLOR_WHITE, COLOR_MAGENTA);
+        init_pair(PAIR_FLOOR, COLOR_BLACK, COLOR_YELLOW);
+        init_pair(PAIR_DEFAULT, COLOR_WHITE, COLOR_BLACK);
+        init_pair(PAIR_TITLE, COLOR_RED, COLOR_BLACK);
+    }
 
     if (num_levels == 0) {
         endwin();
@@ -120,7 +141,13 @@ int main(int argc, char *argv[]) {
         /* Check if level is complete */
         if (game.boxes_on_goal == game.boxes_total) {
             level_complete = 1;
-            mvprintw(game.height + 6, 0, "Level complete! Press 'n' for next level.");
+            if (game.use_colors) {
+                attron(A_STANDOUT);
+            }
+            mvprintw(start_y + game.height + 3, start_x, "Level complete! Press 'n' for next level.");
+            if (game.use_colors) {
+                attroff(A_STANDOUT);
+            }
         }
 
         /* Get input */
@@ -211,44 +238,33 @@ int main(int argc, char *argv[]) {
 }
 
 /* Initialize ncurses */
+/* Function replaced with inline code in main */
 void init_curses(void) {
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-    curs_set(0);
-
-    /* Initialize colors */
-    if (has_colors()) {
-        start_color();
-        init_pair(PAIR_WALL, COLOR_WHITE, COLOR_BLUE);
-        init_pair(PAIR_PLAYER, COLOR_BLACK, COLOR_GREEN);
-        init_pair(PAIR_BOX, COLOR_BLACK, COLOR_RED);
-        init_pair(PAIR_GOAL, COLOR_RED, COLOR_CYAN);
-        init_pair(PAIR_BOX_GOAL, COLOR_WHITE, COLOR_MAGENTA);
-        init_pair(PAIR_FLOOR, COLOR_BLACK, COLOR_YELLOW);
-        init_pair(PAIR_DEFAULT, COLOR_WHITE, COLOR_BLACK);
-    }
+    /* This function is no longer used */
 }
 
 /* Load a level from embedded data */
 char** load_level(int level_index, int* width, int* height, int* player_x, int* player_y, int* boxes) {
+    const char* level_data;
+    const char* ptr;
+    int max_width = 0;
+    int num_lines = 0;
+    char** map;
+    int line_idx;
+    int i, j, len;
+    const char* line_start;
+    
     if (level_index < 0 || level_index >= NUM_EMBEDDED_LEVELS) {
         endwin();
         fprintf(stderr, "Invalid level index: %d\n", level_index);
         exit(EXIT_FAILURE);
     }
 
-    const char* level_data = embedded_levels[level_index].data;
-    const char* ptr = level_data;
-    int max_width = 0;
-    int num_lines = 0;
-    char** map;
-    int line_idx;
-    int i, j, len;
+    level_data = embedded_levels[level_index].data;
+    ptr = level_data;
 
     /* Count the number of lines and find the longest line */
-    const char* line_start = ptr;
+    line_start = ptr;
     while (*ptr) {
         if (*ptr == '\n') {
             len = ptr - line_start;
@@ -340,24 +356,26 @@ void free_map(char** map, int height) {
 void draw_map(const Game* game) {
     int y, x;
     char ch;
-    int start_y, start_x;
     int screen_width, screen_height;
 
     /* Get terminal dimensions */
     getmaxyx(stdscr, screen_height, screen_width);
 
-    /* Calculate centering offsets */
-    start_y = (screen_height - game->height) / 2;
+    /* Remove the top title since we've moved it to the status section */
+
+    /* Calculate centering offsets - add 2 to start_y for the title */
+    start_y = (screen_height - game->height) / 2 ;
     start_x = (screen_width - game->width) / 2;
 
     /* Make sure we don't go off screen */
-    start_y = (start_y < 0) ? 0 : start_y;
+    start_y = (start_y < 2) ? 2 : start_y;
     start_x = (start_x < 0) ? 0 : start_x;
 
-    /* Set default colors */
+    /* Set default colors ONLY if using color mode */
     if (game->use_colors && has_colors()) {
         attron(COLOR_PAIR(PAIR_DEFAULT));
     }
+    /* For black and white mode, don't set any attributes at all */
 
     /* Clear the screen */
     clear();
@@ -472,20 +490,28 @@ void draw_map(const Game* game) {
         }
     }
 
-    /* Reset to default color for status text */
+    /* Reset colors ONLY if using color mode */
     if (game->use_colors && has_colors()) {
         attrset(COLOR_PAIR(PAIR_DEFAULT));
     }
+    /* For black and white mode, don't set any attributes at all */
 
     /* Show status info in centered position */
-    mvprintw(start_y + game->height + 1, start_x, "Level: %s (%d/%d)",
+    if (game->use_colors) {
+        attron(A_BOLD);
+    }
+    mvprintw(start_y + game->height + 1, start_x, "TTY SOKOBAN - github.com/tenox7/ttysokoban");
+    mvprintw(start_y + game->height + 2, start_x, "Level: %s (%d/%d)",
              game->level_name, current_level + 1, num_levels);
-    mvprintw(start_y + game->height + 2, start_x, "Boxes: %d/%d", game->boxes_on_goal, game->boxes_total);
+    mvprintw(start_y + game->height + 3, start_x, "Boxes: %d/%d", game->boxes_on_goal, game->boxes_total);
+    if (game->use_colors) {
+        attroff(A_BOLD);
+    }
 
     /* Only display legend if there's enough screen space */
-    if (start_y + game->height + 4 < screen_height) {
-        mvprintw(start_y + game->height + 3, start_x, "Arrows/WASD/hjkl move");
-        mvprintw(start_y + game->height + 4, start_x, "[R]estart, [N]ext, [P]rev, [Q]uit");
+    if (start_y + game->height + 5 < screen_height) {
+        mvprintw(start_y + game->height + 4, start_x, "Arrows/WASD/hjkl move");
+        mvprintw(start_y + game->height + 5, start_x, "[R]estart, [N]ext, [P]rev, [Q]uit");
     }
 
     refresh();
