@@ -2,7 +2,7 @@
 
 ![TTY Sokoban](ttysokoban.png)
 
-A terminal-based Sokoban game written in C using the ncurses library.
+A terminal-based Sokoban game written in C using the curses library.
 
 ## Description
 
@@ -11,7 +11,7 @@ TTY Sokoban is a simple implementation of the classic Sokoban puzzle game for te
 ## Requirements
 
 - C compiler (like GCC)
-- ncurses library
+- curses library
 
 ## Building
 
@@ -46,6 +46,7 @@ Flags:
 - r: Restart the current level
 - n: Go to the next level
 - p: Go to the previous level
+- c: Clear and redraw screen
 - q: Quit the game
 
 
