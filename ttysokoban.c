@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
     /* Only initialize colors if we're using color mode */
     if (game.use_colors && has_colors()) {
         start_color();
-        init_pair(PAIR_WALL, COLOR_WHITE, COLOR_BLUE);
+        init_pair(PAIR_WALL, COLOR_BLUE, COLOR_WHITE);
         init_pair(PAIR_PLAYER, COLOR_BLACK, COLOR_GREEN);
         init_pair(PAIR_BOX, COLOR_BLACK, COLOR_RED);
         init_pair(PAIR_GOAL, COLOR_RED, COLOR_CYAN);
@@ -447,6 +447,11 @@ void draw_map(const Game* game) {
                 int left = (x > 0 && game->map[y][x-1] == WALL);
                 int right = (x < game->width-1 && game->map[y][x+1] == WALL);
 
+                /* Apply reverse video for walls when colors are enabled */
+                if (game->use_colors) {
+                    attron(A_REVERSE);
+                }
+                
                 if (game->use_ascii_borders) {
                     /* ASCII box characters */
                     if (up && down && left && right) mvaddch(start_y + y, start_x + x, '+');
@@ -483,6 +488,11 @@ void draw_map(const Game* game) {
                     else if (left) mvaddch(start_y + y, start_x + x, ACS_HLINE);
                     else if (right) mvaddch(start_y + y, start_x + x, ACS_HLINE);
                     else mvaddch(start_y + y, start_x + x, ACS_PLUS);
+                }
+                
+                /* Turn off reverse video */
+                if (game->use_colors) {
+                    attroff(A_REVERSE);
                 }
             } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
                 /* Apply bold attribute to game characters when colors are enabled */
@@ -607,6 +617,11 @@ void draw_cell(const Game* game, int y, int x) {
         int left = (x > 0 && game->map[y][x-1] == WALL);
         int right = (x < game->width-1 && game->map[y][x+1] == WALL);
 
+        /* Apply reverse video for walls when colors are enabled */
+        if (game->use_colors) {
+            attron(A_REVERSE);
+        }
+        
         if (game->use_ascii_borders) {
             /* ASCII box characters */
             if (up && down && left && right) mvaddch(start_y + y, start_x + x, '+');
@@ -643,6 +658,11 @@ void draw_cell(const Game* game, int y, int x) {
             else if (left) mvaddch(start_y + y, start_x + x, ACS_HLINE);
             else if (right) mvaddch(start_y + y, start_x + x, ACS_HLINE);
             else mvaddch(start_y + y, start_x + x, ACS_PLUS);
+        }
+        
+        /* Turn off reverse video */
+        if (game->use_colors) {
+            attroff(A_REVERSE);
         }
     } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
         /* Apply bold attribute to game characters when colors are enabled */
