@@ -11,12 +11,22 @@
 #include "levels.h"
 
 /* Color constants for Win32 console */
-#define COLOR_WALL      (FOREGROUND_BLUE | FOREGROUND_INTENSITY)
-#define COLOR_PLAYER    (FOREGROUND_GREEN | FOREGROUND_INTENSITY)
-#define COLOR_BOX       (FOREGROUND_RED | FOREGROUND_INTENSITY)
-#define COLOR_GOAL      (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY)
-#define COLOR_BOX_GOAL  (FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY)
-#define COLOR_FLOOR     (FOREGROUND_WHITE)
+/* Fancy mode - colored backgrounds (reverse video) */
+#define COLOR_WALL_FANCY      (BACKGROUND_BLUE | BACKGROUND_INTENSITY | FOREGROUND_WHITE)
+#define COLOR_PLAYER_FANCY    (BACKGROUND_GREEN | FOREGROUND_WHITE | FOREGROUND_INTENSITY)
+#define COLOR_BOX_FANCY       (BACKGROUND_RED | FOREGROUND_WHITE | FOREGROUND_INTENSITY)
+#define COLOR_GOAL_FANCY      (BACKGROUND_RED | BACKGROUND_GREEN | FOREGROUND_WHITE)
+#define COLOR_BOX_GOAL_FANCY  (BACKGROUND_RED | BACKGROUND_BLUE | FOREGROUND_WHITE | FOREGROUND_INTENSITY)
+#define COLOR_FLOOR_FANCY     (BACKGROUND_BLACK | FOREGROUND_WHITE)
+
+/* ASCII mode - foreground colors only */
+#define COLOR_WALL_ASCII      (FOREGROUND_BLUE | FOREGROUND_INTENSITY)
+#define COLOR_PLAYER_ASCII    (FOREGROUND_GREEN | FOREGROUND_INTENSITY)
+#define COLOR_BOX_ASCII       (FOREGROUND_RED | FOREGROUND_INTENSITY)
+#define COLOR_GOAL_ASCII      (FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_INTENSITY)
+#define COLOR_BOX_GOAL_ASCII  (FOREGROUND_RED | FOREGROUND_BLUE | FOREGROUND_INTENSITY)
+#define COLOR_FLOOR_ASCII     (FOREGROUND_WHITE)
+
 #define COLOR_DEFAULT   (FOREGROUND_WHITE)
 #define COLOR_TITLE     (FOREGROUND_RED | FOREGROUND_INTENSITY)
 
@@ -43,12 +53,20 @@
 #define BACKGROUND_YELLOW (BACKGROUND_RED | BACKGROUND_GREEN)
 #endif
 
-/* Display characters (simple ASCII) */
-#define DISP_WALL '#'
-#define DISP_PLAYER '@'
-#define DISP_BOX '#'
-#define DISP_BOX_ON_GOAL '*'
-#define DISP_GOAL 'O'
+/* Display characters */
+#define DISP_WALL_FANCY ' '          /* Space character with colored background */
+#define DISP_PLAYER_FANCY '@'        /* @ character for player */
+#define DISP_BOX_FANCY '#'           /* # character for boxes */
+#define DISP_BOX_ON_GOAL_FANCY '*'   /* * character for box on goal */
+#define DISP_GOAL_FANCY '.'          /* . character for goals */
+
+#define DISP_WALL_ASCII_H '-'  /* Horizontal wall */
+#define DISP_WALL_ASCII_V '|'  /* Vertical wall */
+#define DISP_WALL_ASCII '#'    /* Default wall */
+#define DISP_PLAYER_ASCII '@'
+#define DISP_BOX_ASCII '#'
+#define DISP_BOX_ON_GOAL_ASCII '*'
+#define DISP_GOAL_ASCII 'O'
 
 /* Game state */
 typedef struct {
@@ -62,6 +80,7 @@ typedef struct {
     char* level_name;
     int use_ascii_borders;
     int use_colors;
+    int use_ascii_mode;
 } Game;
 
 /* Global variables */
@@ -88,6 +107,8 @@ void set_cursor_position(int x, int y);
 void write_char_at(int x, int y, char ch, WORD attributes);
 void write_string_at(int x, int y, const char* str, WORD attributes);
 void clear_screen(void);
+void clear_screen_with_bg(WORD bg_attributes);
+char get_wall_char_ascii(const Game* game, int x, int y);
 int get_key_input(void);
 
 /* Function to display help */
@@ -98,6 +119,7 @@ void show_help(const char* program_name) {
     printf("  -h, --help     Show this help message and exit\n");
     printf("  -a, --ascii    Use ASCII characters for walls instead of box drawing characters\n");
     printf("  -b, -bw        Black and white mode (disable colors)\n");
+    printf("  -n             Use simple ASCII characters (# @ O) instead of fancy graphics\n");
     printf("\nControls:\n");
     printf("  Arrow keys, WASD, HJKL    Move player\n");
     printf("  R                         Restart current level\n");
@@ -175,6 +197,39 @@ void clear_screen(void) {
     SetConsoleCursorPosition(hStdout, coord);
 }
 
+/* Clear screen with background color */
+void clear_screen_with_bg(WORD bg_attributes) {
+    COORD coord = {0, 0};
+    DWORD written;
+    DWORD size;
+    
+    GetConsoleScreenBufferInfo(hStdout, &csbi);
+    size = csbi.dwSize.X * csbi.dwSize.Y;
+    
+    FillConsoleOutputCharacter(hStdout, ' ', size, coord, &written);
+    FillConsoleOutputAttribute(hStdout, bg_attributes, size, coord, &written);
+    SetConsoleCursorPosition(hStdout, coord);
+}
+
+/* Get appropriate ASCII wall character based on neighbors */
+char get_wall_char_ascii(const Game* game, int x, int y) {
+    int has_wall_left = (x > 0 && game->map[y][x-1] == WALL);
+    int has_wall_right = (x < game->width-1 && game->map[y][x+1] == WALL);
+    int has_wall_up = (y > 0 && game->map[y-1][x] == WALL);
+    int has_wall_down = (y < game->height-1 && game->map[y+1][x] == WALL);
+    
+    /* Prioritize horizontal connections */
+    if (has_wall_left || has_wall_right) {
+        return DISP_WALL_ASCII_H;
+    }
+    /* Then vertical connections */
+    if (has_wall_up || has_wall_down) {
+        return DISP_WALL_ASCII_V;
+    }
+    /* Default to horizontal for isolated walls */
+    return DISP_WALL_ASCII_H;
+}
+
 /* Get key input */
 int get_key_input(void) {
     INPUT_RECORD input_record;
@@ -218,6 +273,7 @@ int main(int argc, char *argv[]) {
     /* Check for command line flags */
     game.use_ascii_borders = 0;
     game.use_colors = 1;  /* Colors enabled by default */
+    game.use_ascii_mode = 0;  /* Fancy graphics by default */
 
     for (i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
@@ -229,6 +285,9 @@ int main(int argc, char *argv[]) {
         }
         if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "-bw") == 0) {
             game.use_colors = 0;  /* Disable colors */
+        }
+        if (strcmp(argv[i], "-n") == 0) {
+            game.use_ascii_mode = 1;  /* Use simple ASCII characters */
         }
     }
 
@@ -475,16 +534,22 @@ void draw_map(const Game* game) {
     screen_width = csbi.srWindow.Right - csbi.srWindow.Left + 1;
     screen_height = csbi.srWindow.Bottom - csbi.srWindow.Top + 1;
 
-    /* Calculate centering offsets with 5-line top margin */
-    start_y = (screen_height - game->height) / 2 + 5;
+    /* Calculate centering offsets with 3-line top margin */
+    start_y = (screen_height - game->height) / 2 + 3;
     start_x = (screen_width - game->width) / 2;
 
     /* Make sure we don't go off screen */
-    start_y = (start_y < 7) ? 7 : start_y;
+    start_y = (start_y < 5) ? 5 : start_y;
     start_x = (start_x < 0) ? 0 : start_x;
 
-    /* Clear the screen */
-    clear_screen();
+    /* Clear the screen with appropriate background */
+    if (game->use_colors && !game->use_ascii_mode) {
+        /* Fancy mode - use dark background */
+        clear_screen_with_bg(BACKGROUND_BLACK);
+    } else {
+        /* ASCII mode or no colors - use default */
+        clear_screen();
+    }
 
     /* Draw the map elements */
     for (y = 0; y < game->height; y++) {
@@ -494,45 +559,92 @@ void draw_map(const Game* game) {
 
             /* Apply colors if enabled */
             if (game->use_colors) {
-                switch (ch) {
-                    case WALL:
-                        attributes = COLOR_WALL;
-                        break;
-                    case PLAYER:
-                    case PLAYER_ON_GOAL:
-                        attributes = COLOR_PLAYER;
-                        break;
-                    case BOX:
-                        attributes = COLOR_BOX;
-                        break;
-                    case GOAL:
-                        attributes = COLOR_GOAL;
-                        break;
-                    case BOX_ON_GOAL:
-                        attributes = COLOR_BOX_GOAL;
-                        break;
-                    case EMPTY:
-                        attributes = COLOR_FLOOR;
-                        break;
-                    default:
-                        attributes = COLOR_DEFAULT;
-                        break;
+                if (game->use_ascii_mode) {
+                    /* ASCII mode - use foreground colors */
+                    switch (ch) {
+                        case WALL:
+                            attributes = COLOR_WALL_ASCII;
+                            break;
+                        case PLAYER:
+                        case PLAYER_ON_GOAL:
+                            attributes = COLOR_PLAYER_ASCII;
+                            break;
+                        case BOX:
+                            attributes = COLOR_BOX_ASCII;
+                            break;
+                        case GOAL:
+                            attributes = COLOR_GOAL_ASCII;
+                            break;
+                        case BOX_ON_GOAL:
+                            attributes = COLOR_BOX_GOAL_ASCII;
+                            break;
+                        case EMPTY:
+                            attributes = COLOR_FLOOR_ASCII;
+                            break;
+                        default:
+                            attributes = COLOR_DEFAULT;
+                            break;
+                    }
+                } else {
+                    /* Fancy mode - use background colors */
+                    switch (ch) {
+                        case WALL:
+                            attributes = COLOR_WALL_FANCY;
+                            break;
+                        case PLAYER:
+                        case PLAYER_ON_GOAL:
+                            attributes = COLOR_PLAYER_FANCY;
+                            break;
+                        case BOX:
+                            attributes = COLOR_BOX_FANCY;
+                            break;
+                        case GOAL:
+                            attributes = COLOR_GOAL_FANCY;
+                            break;
+                        case BOX_ON_GOAL:
+                            attributes = COLOR_BOX_GOAL_FANCY;
+                            break;
+                        case EMPTY:
+                            attributes = COLOR_FLOOR_FANCY;
+                            break;
+                        default:
+                            attributes = COLOR_DEFAULT;
+                            break;
+                    }
                 }
             }
             
             /* Draw map elements with appropriate display characters */
-            if (ch == WALL) {
-                write_char_at(start_x + x, start_y + y, DISP_WALL, attributes);
-            } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
-                write_char_at(start_x + x, start_y + y, DISP_PLAYER, attributes);
-            } else if (ch == BOX) {
-                write_char_at(start_x + x, start_y + y, DISP_BOX, attributes);
-            } else if (ch == BOX_ON_GOAL) {
-                write_char_at(start_x + x, start_y + y, DISP_BOX_ON_GOAL, attributes);
-            } else if (ch == GOAL) {
-                write_char_at(start_x + x, start_y + y, DISP_GOAL, attributes);
+            if (game->use_ascii_mode) {
+                /* ASCII mode */
+                if (ch == WALL) {
+                    write_char_at(start_x + x, start_y + y, get_wall_char_ascii(game, x, y), attributes);
+                } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
+                    write_char_at(start_x + x, start_y + y, DISP_PLAYER_ASCII, attributes);
+                } else if (ch == BOX) {
+                    write_char_at(start_x + x, start_y + y, DISP_BOX_ASCII, attributes);
+                } else if (ch == BOX_ON_GOAL) {
+                    write_char_at(start_x + x, start_y + y, DISP_BOX_ON_GOAL_ASCII, attributes);
+                } else if (ch == GOAL) {
+                    write_char_at(start_x + x, start_y + y, DISP_GOAL_ASCII, attributes);
+                } else {
+                    write_char_at(start_x + x, start_y + y, ch, attributes);
+                }
             } else {
-                write_char_at(start_x + x, start_y + y, ch, attributes);
+                /* Fancy mode */
+                if (ch == WALL) {
+                    write_char_at(start_x + x, start_y + y, DISP_WALL_FANCY, attributes);
+                } else if (ch == PLAYER || ch == PLAYER_ON_GOAL) {
+                    write_char_at(start_x + x, start_y + y, DISP_PLAYER_FANCY, attributes);
+                } else if (ch == BOX) {
+                    write_char_at(start_x + x, start_y + y, DISP_BOX_FANCY, attributes);
+                } else if (ch == BOX_ON_GOAL) {
+                    write_char_at(start_x + x, start_y + y, DISP_BOX_ON_GOAL_FANCY, attributes);
+                } else if (ch == GOAL) {
+                    write_char_at(start_x + x, start_y + y, DISP_GOAL_FANCY, attributes);
+                } else {
+                    write_char_at(start_x + x, start_y + y, ch, attributes);
+                }
             }
         }
     }
