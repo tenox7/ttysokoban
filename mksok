@@ -1,0 +1,3 @@
+c oldcurses.c
+/etc/bin/link -o ttysokoban -max 0xffffffff +text -b0 -o0 -m0xffffffff +data -r17 -m0xffffffff +bss -b0 /lib/Crts.68k oldcurses.o /lib/libi.68k /lib/libcurse.68k /lib/libtcap.68k /lib/libposix.68k /lib/libc.68k /lib/liba.68k /lib/libb.68k /lib/libm.68k /lib/libtpad.68k
+ls -l ttysokoban

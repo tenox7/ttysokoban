@@ -24,6 +24,16 @@ This will:
 2. Generate the embedded_levels.h file from levels in the levels/ directory
 3. Compile the game with the embedded levels
 
+### Old curses (Whitesmiths Idris)
+
+`oldcurses.h` builds ttysokoban with an old 4.2BSD style curses: no colors, no keypad, no attributes but standout. It was made for the 1985 UNISCREEN curses of Whitesmiths Idris, and tested on Idris 3.14 on an Atari Mega ST in Hatari. The arrow keys are read as VT52 or VT100 escape sequences.
+
+1. On a modern machine: `make embedded_levels.h`
+2. Copy `ttysokoban.c`, `levels.h`, `embedded_levels.h`, `oldcurses.h`, `oldcurses.c` and `mksok` to Idris.
+3. On Idris: `sh mksok`
+
+Idris keeps only the first 14 letters of a file name, so `embedded_levels.h` is stored as `embedded_level`. The `#include` still finds it.
+
 ## Running the Game
 
 ```
